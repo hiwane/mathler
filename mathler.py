@@ -124,7 +124,7 @@ def _solve0(ans, pp, s):
     v = parse(s)
     if -0.001 < v - ans < 0.001:
       u = set(s)
-      print([s, len(u)])
+      print([s, len(u)], flush=True)
   except Exception:
     pass
   return
@@ -141,9 +141,10 @@ def _solve(depth, op, vv, ans, hit, blow, pp, s, algo):
     v = set(hit[n + 1])
   elif n == -1 or s[n] in '+-/*(':  # 1文字目は数字か開括弧
     v = vv - set('+-/*)')
-  elif s[n] == '0' or s[n] in ')':  # '0' のつぎは数字はこない
+  elif (s[n] == '0' and (n == 0 or not ('0' <= s[n - 1] <= '9')) or
+        s[n] in ')'):  # '0' のつぎは数字はこない
     v = vv - set('0123456789')
-  elif depth == 1:  # 最後の一個は数字か閉じ括弧
+  elif depth == 1:  # 最後の一個は数字か閉括弧
     v = vv - set('+-/*(')
   else:
     v = vv
@@ -185,30 +186,76 @@ def solve(depth, op, vv, ans, hit, blow, s):
   return _solve(depth, op, vv, ans, hit, blow, pp, s, algo)
 
 
-doctest.testmod()
+def check_arg(args) -> bool:
+  if len(args.args) % 2 != 0:
+    print('# of args should be even', file=sys.stderr)
+    return False
+  for i, s in enumerate(args.args):
+    if len(s) != args.k:
+      print(f'len(args[{i}]) != {args.k}: {s}', file=sys.stderr)
+      return False
+    if i % 2 == 0:
+      # 文法誤り
+      try:
+        if parse(s) != args.a:
+          print(f'{s} != {args.a}: {i}th arg', file=sys.stderr)
+          return False
+      except Exception:
+        print(f'{i}th arg is invalid: {s}', file=sys.stderr)
+        return False
+    elif len(set(s) - set('ox_-')) != 0:
+      print(f'{i}th arg is invalid: {s}', file=sys.stderr)
+      return False
+  return True
 
-ans = 228
-depth = 8  # high=8, normal=6, easy=5
-op = {8: 3, 6: 2, 5: 1}[depth]
 
-out = set('14256780')   # 手入力 グレーなやつ
-# 緑   12345678
-hit = '_______8'
+def main():
+  import argparse
 
-blow = [  # 黄色
-    '',  # 1
-    '',  # 2
-    '3*',  # 3
-    '*',  # 4
-    '-',  # 5
-    '-3',  # 6
-    '',  # 7
-    '',  # 8
-]
+  parser = argparse.ArgumentParser(description='')
+  parser.add_argument('args', nargs='*', help='hit=o, blow=x, out=_|-')
+  parser.add_argument('-k', choices=[8, 6, 5], default=8, type=int,
+                      help="# of squares: hard=8, normal=6, easy=5")
+  parser.add_argument('-v', action='store_true')
+  parser.add_argument('-a', required=True, type=int)
+  args = parser.parse_args()
 
-vv = set('1234567890+-/*()') - out
-solve(depth, op, vv, ans, hit, blow, '')
-print("finished")
+  if not check_arg(args):
+    doctest.testmod()
+    print('usage....', file=sys.stderr)
+    return 2
+
+  ans = args.a
+  depth = args.k
+  op = {8: 3, 6: 2, 5: 1}[depth]
+  out = set()  # 灰
+  # 緑   12345678
+  hit = ['_'] * depth
+  blow = [''] * depth  # 黄色
+  for i in range(0, len(args.args), 2):
+    for j in range(depth):
+      s = args.args[i + 0][j]
+      t = args.args[i + 1][j]
+      if t == 'o':  # hit
+        assert hit[j] == '_' or hit[j] == s
+        hit[j] = s
+      elif t == 'x':  # blow
+        blow[j] += s
+      else:
+        out.add(s)
+  vv = set('1234567890+-/*()') - out
+  hit = ''.join(hit)
+  if args.v:
+    print(f'hit={hit}')
+    print(f'blow={blow}')
+    print(f'vv={vv}')
+
+  solve(depth, op, vv, ans, hit, blow, '')
+  print("finished")
+
+
+if __name__ == '__main__':
+  main()
 
 
 # vim:set et ts=2 sts=2 sw=2 tw=80:
