@@ -130,7 +130,7 @@ def _solve0(ans, pp, s):
   return
 
 
-def _solve(depth, op, vv, ans, hit, blow, pp, s, algo):
+def _solve(depth, op, ans, vv, hit, blow, pp, s, algo):
   if depth == 0:
     return _solve0(ans, pp, s)
 
@@ -164,26 +164,35 @@ def _solve(depth, op, vv, ans, hit, blow, pp, s, algo):
 
   for a in v:
     o = op - 1 if a in '+-*/' else op
-    _solve(depth - 1, o, vv, ans, hit, blow, pp, s + a, algo)
+    _solve(depth - 1, o, ans, vv, hit, blow, pp, s + a, algo)
 
 
-def solve(depth, op, vv, ans, hit, blow, s):
-  if len(vv) == 16 or hit == '________':
+def solve(depth: int,  # # of squares
+          op: int,  # max # of operators
+          ans: int,
+          vv: set,  # candiate
+          hit: str,
+          blow: list,
+          algo: str):
+  if algo in ['bara', 'all']:
+    pass
+  elif len(vv) == 16 or len(set(hit)) == 1:   # 0ヒット
     algo = 'bara'
-  elif depth == 8 and hit == '________' and len(vv) >= 14:
+  elif hit == '________' and len(vv) >= 14:
     algo = 'bara'
   else:
     algo = 'all'
   if depth < 8:
     vv = vv - set('()')
 
+  # 答えに含まれることが確定している数字や演算子
   pp = set()
   for i in range(len(blow)):
     blow[i] = set(blow[i])
     pp = pp | blow[i]
   pp = pp | set(hit) - set('_')
 
-  return _solve(depth, op, vv, ans, hit, blow, pp, s, algo)
+  return _solve(depth, op, ans, vv, hit, blow, pp, '', algo)
 
 
 def check_arg(args) -> bool:
@@ -203,7 +212,7 @@ def check_arg(args) -> bool:
       except Exception:
         print(f'{i}th arg is invalid: {s}', file=sys.stderr)
         return False
-    elif len(set(s) - set('ox_-')) != 0:
+    elif len(set(s) - set('ox_- ')) != 0:
       print(f'{i}th arg is invalid: {s}', file=sys.stderr)
       return False
   return True
@@ -218,6 +227,7 @@ def main():
                       help="# of squares: hard=8, normal=6, easy=5")
   parser.add_argument('-v', action='store_true')
   parser.add_argument('-a', required=True, type=int)
+  parser.add_argument('-s', choices=['bara', 'all'])
   args = parser.parse_args()
 
   if not check_arg(args):
@@ -248,9 +258,9 @@ def main():
   if args.v:
     print(f'hit={hit}')
     print(f'blow={blow}')
-    print(f'vv={vv}')
+    print(f'cand={vv}')
 
-  solve(depth, op, vv, ans, hit, blow, '')
+  solve(depth, op, ans, vv, hit, blow, args.s)
   print("finished")
 
 
