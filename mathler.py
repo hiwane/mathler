@@ -12,7 +12,11 @@ class Mathler(object):
     self.depth = depth
     self.op = {8: 3, 6: 2, 5: 1}[depth]  # max(# of operators)
     self.ans = ans
+    self.use_01 = False
     self.reset()
+
+  def setUse01(self, b: bool):
+    self.use_01 = b
 
   def _init_costs(self):
     self.cost = [0] * 10
@@ -79,7 +83,7 @@ class Mathler(object):
         continue
       v = 0
       j = i
-      while i < len(s) and '0' <= s[i] <= '9':
+      while i < len(s) and self.isnum(s[i]):
         v = 10 * v + int(s[i])
         i += 1
       if i == j:
@@ -173,10 +177,73 @@ class Mathler(object):
       pass
     return
 
+  def isnum(self, v):
+    return '0' <= v <= '9'
+
+  def non(self, s: str) -> str:
+    """ 0+x, 0-x, x/1, 1*x のような単位元，零元による操作は除外する
+
+    >>> w = Mathler(8, 5)
+    >>> w.non('0')
+    '+-*/'
+    >>> w.non('1')
+    '*/'
+    >>> w.non('3+')
+    '0'
+    >>> w.non('3-')
+    '0'
+    >>> w.non('3*')
+    '0'
+    >>> w.non('3/')
+    '0'
+    >>> w.non('3+1')
+    '*/'
+    >>> w.non('3-1')
+    '*/'
+    >>> w.non('3*1')
+    '+-*/('
+    >>> w.non('3/1')
+    '+-*/('
+    >>> w.non('5*98+4/')
+    '01'
+    """
+    n = len(s) - 1
+    if n < 0 or s[n] == '*':
+      return '0'
+    if n == 0:
+      if s[n] == '0':
+        return '+-*/'
+      if s[n] == '1':
+        return '*/'
+      return ''
+    if s[n] in '+-*/':
+      if n + 2 == self.depth and s[n] in '*/':
+          return '01'
+      return '0'
+    if s[n] == '1' and not self.isnum(s[n - 1]):
+      # 直前が `1`
+      if s[n - 1] in '*/':  # *1 /1
+        return '+-*/('
+      else:
+        return '*/'
+    if s[n] == '0' and not self.isnum(s[n - 1]):
+      if s[n - 1] in '*/':
+        return '+-*/'
+      else:
+        return '*/'
+
+    if s[n] == '1' and (n == 0 or not self.isnum(s[n - 1])):
+      # 直前が `1`
+      return '*/'
+    if s[n] == '0' and (n == 0 or not self.isnum(s[n - 1])):
+      # 直前が `0`
+      return '*/+-'
+    return ''
+
   def _solve(self, depth, op, vv, hit, blow, pp, s, algo):
     if depth == 0:
       return self._solve0(pp, s, op)
-    if self.stage <= 1 and depth < 2 * op:  # 全部の op を使い切ること.
+    if self.stage <= 0 and depth < 2 * op:  # 全部の op を使い切ること.
       return
 
     n = len(s) - 1
@@ -184,9 +251,11 @@ class Mathler(object):
     # 計算量削減のため不要なものは取り除く
     if hit[n + 1] != '_':
       v = set(hit[n + 1])
+    elif n > 0 and s[n] == '/':
+      v = vv - set('+-/*)0')
     elif n == -1 or s[n] in '+-/*(':  # 1文字目は数字か開括弧
       v = vv - set('+-/*)')
-    elif (s[n] == '0' and (n == 0 or not ('0' <= s[n - 1] <= '9')) or
+    elif (s[n] == '0' and (n == 0 or not self.isnum(s[n - 1])) or
           s[n] in ')'):  # '0' のつぎは数字はこない
       v = vv - set('0123456789')
     elif depth == 1:  # 最後の一個は数字か閉括弧
@@ -195,6 +264,8 @@ class Mathler(object):
       v = vv
     if algo == 'bara':  # バラバラであれ
       v = v - set(s)
+    if self.stage == 0 or not self.use_01:
+      v = v - set(self.non(s))
 
     v = v - set(blow[n + 1])
 
@@ -256,7 +327,7 @@ class Mathler(object):
         if s in c:
           self.cost[j] += 1
       for i, ci in enumerate(c):
-        if '0' <= ci <= '9':
+        if self.isnum(ci):
           self.costs[i][ord(ci) - ord('0')] += 1
 
   def weight(self, x):
@@ -303,18 +374,21 @@ def main():
   import argparse
 
   parser = argparse.ArgumentParser(description='')
-  parser.add_argument('args', nargs='*', help='hit=o, blow=x, out=_|-')
-  parser.add_argument('-k', choices=[8, 6, 5], default=8, type=int,
+  parser.add_argument('args', nargs='*',
+                      help='guess1 resp1 guess2 resp2 ... hit=o, blow=x, out=_|-')
+  parser.add_argument('-k', choices=[8, 6, 5], type=int, required=True,
                       help="# of squares: hard=8, normal=6, easy=5")
   parser.add_argument('-v', action='store_true')
-  parser.add_argument('-a', required=True, type=int)
-  parser.add_argument('-s', choices=['bara', 'all'])
-  parser.add_argument('-t', action='store_true')
+  parser.add_argument('-a', required=True, type=int, help="answer")
+  parser.add_argument('-s', choices=['bara', 'all'], help="strategy")
+  parser.add_argument('-t', action='store_true', help="doctest")
+  parser.add_argument('-g', action='store_true', help="1*x, x/1, x+0")
   args = parser.parse_args()
 
   depth = args.k
   ans = args.a
   w = Mathler(depth, ans)
+  w.setUse01(args.g)
 
   if args.t:
     doctest.testmod()
