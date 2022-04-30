@@ -315,6 +315,8 @@ class Mathler(object):
       self._solve(self.depth, op, vv, hit, blow, pp, '', algo)
       if len(self.cand) > 0:
         break
+    if len(self.cand) == 0 and algo == 'bara':
+      return self.solve('all')
     self.cmp_cost()
     self.cand.sort(key=lambda x: self.weight(x))
     for p in self.cand:
