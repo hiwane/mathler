@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import re
 import sys
 import doctest
 
@@ -30,7 +31,25 @@ class Mathler(object):
     self.blow = [''] * self.depth
     self.stage = 0
     self.cand = []
+    self.dup = {_: 100 for _ in "0123456789+-*/()"}
     self._init_costs()
+
+  @classmethod
+  def strnumchr(cls, ss, c):
+    """
+
+    >>> Mathler.strnumchr("hoge", "h")
+    1
+    >>> Mathler.strnumchr("hohe", "h")
+    2
+    >>> Mathler.strnumchr("hohh", "h")
+    3
+    """
+    n = 0
+    for s in ss:
+      if s == c:
+        n += 1
+    return n
 
   def add(self, guess: str, response: str):
     if len(guess) != self.depth:
@@ -52,8 +71,12 @@ class Mathler(object):
         self.hit[j] = guess[j]
       elif response[j] == 'x':  # blow
         self.blow[j] += guess[j]
-      else:
+      elif guess[j] not in guess[:j]:
         self.out.add(guess[j])
+      else:
+        c = guess[j]
+        m = self.strnumchr(guess[:j], c)
+        self.dup[c] = min([self.dup[c], m])
     self.stage += 1
 
   def dprint(self, s):
@@ -156,6 +179,8 @@ class Mathler(object):
     >>> w.parse("9*998/9")
     998
     """
+    if self.strnumchr(s, '(') != self.strnumchr(s, ')'):
+      raise Exception('invalid')
     v = self.lex(s)
     self.dprint(["parse", s, v])
     val, i = self._expr(v, 0)
@@ -166,7 +191,7 @@ class Mathler(object):
   def _solve0(self, pp, s, op):
     if pp & set(s) != pp:
       return
-    if self.stage <= 1 and op > 0:
+    if self.stage < 1 and op > 0:
       # 列挙削減のため，演算子数が最大なものを採用
       return
     try:
@@ -179,6 +204,25 @@ class Mathler(object):
 
   def isnum(self, v):
     return '0' <= v <= '9'
+
+  @classmethod
+  def kakko(cls, s: str, depth) -> str:
+    """ (3) とか (5+1) とか除外除外する
+
+    >>> Mathler.kakko("(123", 1)
+    ')'
+    >>> Mathler.kakko("(123+4", 1)
+    ''
+    >>> Mathler.kakko("4*(123", 1)
+    ')'
+    >>> Mathler.kakko("4*(7*3", 1)
+    ')'
+    """
+    if re.search(r'\([0-9]+$', s):
+      return ')'
+    if re.search(r'\([0-9]+[*/][0-9]+$', s):
+      return ')'
+    return ''
 
   def non(self, s: str) -> str:
     """ 0+x, 0-x, x/1, 1*x のような単位元，零元による操作は除外する
@@ -218,7 +262,7 @@ class Mathler(object):
       return ''
     if s[n] in '+-*/':
       if n + 2 == self.depth and s[n] in '*/':
-          return '01'
+        return '01'
       return '0'
     if s[n] == '1' and not self.isnum(s[n - 1]):
       # 直前が `1`
@@ -266,6 +310,10 @@ class Mathler(object):
       v = v - set(s)
     if self.stage == 0 or not self.use_01:
       v = v - set(self.non(s))
+      if '(' in s and ')' not in s:
+        if s[0] == '(' and depth == 1:
+          return
+        v = v - set(self.kakko(s, depth))
 
     v = v - set(blow[n + 1])
 
@@ -289,9 +337,6 @@ class Mathler(object):
     vv = set('1234567890+-/*()') - self.out
     hit = ''.join(self.hit)
     blow = self.blow
-    print(f'hit={hit}')
-    print(f'blow={blow}')
-    print(f'cand={vv}')
 
     if algo in ['bara', 'all']:
       pass
@@ -303,6 +348,11 @@ class Mathler(object):
       algo = 'all'
     if self.depth < 8:
       vv = vv - set('()')
+
+    print(f'hit={hit}, algo={algo}')
+    print(f'out={self.out}')
+    print(f'blow={blow}')
+    print(f'cand={vv}')
 
     # 答えに含まれることが確定している数字や演算子
     pp = set()
@@ -316,7 +366,9 @@ class Mathler(object):
       if len(self.cand) > 0:
         break
     if len(self.cand) == 0 and algo == 'bara':
+      print("bara not found")
       return self.solve('all')
+
     self.cmp_cost()
     self.cand.sort(key=lambda x: self.weight(x))
     for p in self.cand:
