@@ -250,9 +250,11 @@ class Mathler(object):
     '+-*/('
     >>> w.non('5*98+4/')
     '01'
+    >>> w.non('5*98+4*')
+    '01'
     """
     n = len(s) - 1
-    if n < 0 or s[n] == '*':
+    if n < 0:
       return '0'
     if n == 0:
       if s[n] == '0':
